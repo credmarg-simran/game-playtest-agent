@@ -161,7 +161,7 @@ def build(results: list[ModeResult], comparison: dict | None, meta: dict) -> tup
         f"Targets: " + "; ".join(f"{r.mode}: {r.target}" for r in results),
         f"Model: {meta['model']} ({meta['llm_calls']} calls, {meta['input_tokens']:,} input / {meta['output_tokens']:,} output tokens)",
         f"Runs per player: {meta['runs']}, max {meta['max_run_seconds']}s of game time each. Wall time {meta['wall_seconds']}s.",
-        f"Generated {meta['when']}",
+        f"Generated {meta['when']}" + (f", re-scored {meta['rescored']}" if meta.get("rescored") else ""),
     ])
     sections = [intro]
     multi = len(results) > 1

@@ -36,7 +36,10 @@ def observe(runs: list[RunLog], profile: GameProfile, mechanics_seen: set[str], 
             "play_again": [r.reflection.get("play_again") for r in mine if r.reflection.get("play_again")],
         }
         if strategies.get(name):
-            out["players"][name]["strategies"] = [s["plan"] for s in strategies[name]]
+            out["players"][name]["strategies"] = [
+                "; ".join(map(str, s["plan"])) if isinstance(s["plan"], list) else str(s["plan"]).replace("\n", " ")
+                for s in strategies[name]
+            ]
 
     used_anywhere = {inp for r in runs if r.player != "random" for _, inp in r.inputs}
     menu_only = set(profile.start) | set(profile.restart)

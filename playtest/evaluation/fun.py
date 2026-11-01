@@ -51,13 +51,16 @@ def measure(runs: list[RunLog], profile: GameProfile, behavior: dict, failures: 
     first = next((r for r in runs if r.player != "random"), runs[0] if runs else None)
     if first:
         first_score = next((e.t for e in first.events if e.kind == "score"), None)
-        to_point = first.start_seconds + (first_score if first_score is not None else first.seconds + 30)
         penalty = len(failures["start_retries"]) + 2 * failures["no_start_runs"] + len(failures["ui_confusion"])
-        score = _scale(-to_point, [(-5, 5), (-10, 4), (-20, 3), (-40, 2)]) - min(2, penalty)
+        if first_score is None:
+            to_point, score = "none in first run", 1
+        else:
+            to_point = round(first.start_seconds + first_score, 1)
+            score = _scale(-to_point, [(-5, 5), (-10, 4), (-20, 3), (-40, 2)]) - min(2, penalty)
         signals["clarity"] = _signal(
-            {"seconds_to_first_point": round(to_point, 1), "start_retries": len(failures["start_retries"]),
+            {"seconds_to_first_point": to_point, "start_retries": len(failures["start_retries"]),
              "runs_that_never_started": failures["no_start_runs"], "confusion_notes": len(failures["ui_confusion"])},
-            max(1, score), "first point within 5s = 5, 10s = 4, 20s = 3, 40s = 2; minus retries/confusion")
+            max(1, score), "first point within 5s = 5, 10s = 4, 20s = 3, 40s = 2, none = 1; minus retries/confusion")
 
     # feedback: share of sampled inputs that changed the screen or the state within 8 frames
     responses = [x for r in played for x in r.responses]

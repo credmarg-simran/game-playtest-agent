@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import time
 from pathlib import Path
@@ -45,9 +46,11 @@ def parse(argv=None):
                                            "(default $OPENAI_STRONG_MODEL or --model)")
     ap.add_argument("--out", default="reports", help="where reports go")
     ap.add_argument("--headed", action="store_true", help="show the browser")
+    ap.add_argument("--rescore", metavar="REPORT_JSON", help="recompute metrics, scorecard and verdict from a "
+                                                             "saved report.json without replaying")
     args = ap.parse_args(argv)
-    if not args.source and not args.url:
-        ap.error("give --source, --url or both")
+    if not args.source and not args.url and not args.rescore:
+        ap.error("give --source, --url or both (or --rescore)")
     return args
 
 
@@ -55,6 +58,8 @@ def main(argv=None):
     load_env()
     args = parse(argv)
     llm = make_llm(args.llm, args.model, args.strong_model)
+    if args.rescore:
+        return rescore(Path(args.rescore), llm)
     name = Path(args.source).name if args.source else args.url.rstrip("/").split("/")[-1] or "game"
     out = Path(args.out) / f"{name}-{agent.stamp()}"
     opts = agent.Options(
@@ -83,23 +88,38 @@ def main(argv=None):
         "calls_by_task": llm.usage.by_task, "runs": args.runs, "max_run_seconds": args.max_run_seconds,
         "wall_seconds": round(time.time() - started), "when": time.strftime("%Y-%m-%d %H:%M"),
     }
-    title, sections = writer.build(results, comparison, meta)
-    (out / "report.md").write_text(writer.to_markdown(title, sections))
-    (out / "report.html").write_text(writer.to_html(title, sections))
-    agent.write_json(out / "report.json", {
-        "meta": meta, "comparison": comparison,
-        "modes": [{
-            "mode": r.mode, "target": r.target, "profile": r.profile.to_dict(), "load": r.load, "hooks": r.hooks,
-            "calibration": r.calibration, "problems": r.problems,
-            "metrics": r.metrics, "per_player": r.per_player, "failures": r.failures, "behavior": r.behavior,
-            "fun": r.fun, "verdict": r.verdict, "build_log": r.build_log, "runs": [x.to_dict() for x in r.runs],
-        } for r in results],
-    })
+    write_report(out, results, comparison, meta)
     for r in results:
         v = r.verdict
         print(f"{r.mode}: {v.get('verdict', '?')} ({v.get('fun_score', '?')}/10) - {v.get('headline', '')}")
     print(f"report: {out / 'report.html'}")
     print(f"model calls: {llm.usage.calls} {llm.usage.by_task}, tokens in/out {llm.usage.input_tokens}/{llm.usage.output_tokens}")
+    return out
+
+
+def write_report(out: Path, results, comparison, meta):
+    title, sections = writer.build(results, comparison, meta)
+    (out / "report.md").write_text(writer.to_markdown(title, sections))
+    (out / "report.html").write_text(writer.to_html(title, sections))
+    agent.write_json(out / "report.json", {"meta": meta, "comparison": comparison, "modes": [r.to_dict() for r in results]})
+
+
+def rescore(path: Path, llm):
+    data = json.loads(path.read_text())
+    out = path.parent
+    results = [agent.ModeResult.from_dict(m) for m in data["modes"]]
+    for r in results:
+        agent.analyse(r)
+    comparison = agent.compare(results) if len(results) > 1 else None
+    session = agent.Playtest(llm, out, agent.Options())
+    for r in results:
+        session.evaluate(r, comparison)
+    meta = dict(data["meta"])
+    meta["rescored"] = f"{time.strftime('%Y-%m-%d %H:%M')} with {llm.name} ({llm.usage.calls} judge calls)"
+    write_report(out, results, comparison, meta)
+    for r in results:
+        print(f"{r.mode}: {r.verdict.get('verdict', '?')} ({r.verdict.get('fun_score', '?')}/10) - {r.verdict.get('headline', '')}")
+    print(f"report: {out / 'report.html'}")
     return out
 
 

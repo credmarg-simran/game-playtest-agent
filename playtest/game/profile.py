@@ -52,6 +52,8 @@ BLIND_SYSTEM = f"""You are a game QA engineer looking at a browser game for the 
 code: only a screenshot, the page's visible text, its buttons and any global variables with game-like names.
 Guess the profile a playtester needs. Prefer what the screen tells you. If a global clearly holds the score
 or game state, you may use it as a hook (JS expression in global scope), otherwise leave hooks empty.
+Use the standard hook names where you can: "score", "playing" (true only while the player is in control)
+and "over" (true only on game over / death).
 
 Return JSON with exactly this shape:
 {PROFILE_SHAPE}"""

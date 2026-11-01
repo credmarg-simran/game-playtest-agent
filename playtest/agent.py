@@ -21,7 +21,7 @@ from .game.calibrate import calibrate
 from .game.profile import GameProfile, profile_from_page, profile_from_source
 from .game.project import load_project
 from .llm.base import LLM
-from .play.records import RunLog
+from .play.records import Event, RunLog
 from .play.runner import PlayConfig, Runner
 from .policy.random_player import RandomPlayer
 from .policy.rule_player import RulePlayer
@@ -57,6 +57,52 @@ class ModeResult:
     build_log: list[str] = field(default_factory=list)
     calibration: list[dict] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)  # agent-side failures, not game bugs
+    mechanics_seen: set[str] = field(default_factory=set)
+
+    def to_dict(self) -> dict:
+        return {
+            "mode": self.mode, "target": self.target, "profile": self.profile.to_dict(), "load": self.load,
+            "hooks": self.hooks, "calibration": self.calibration, "problems": self.problems,
+            "strategies": self.strategies, "mechanics_seen": sorted(self.mechanics_seen),
+            "metrics": self.metrics, "per_player": self.per_player, "failures": self.failures,
+            "behavior": self.behavior, "fun": self.fun, "verdict": self.verdict, "build_log": self.build_log,
+            "runs": [x.to_dict() for x in self.runs],
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "ModeResult":
+        """Rebuild a finished mode from report.json, so it can be re-scored without replaying."""
+        profile = GameProfile.from_dict(d["profile"], d["profile"].get("source", "blind"))
+        profile.hook_check = d["profile"].get("hook_check", {})
+        runs = []
+        for r in d["runs"]:
+            r = dict(r)
+            r["events"] = [Event(**e) for e in r["events"]]
+            runs.append(RunLog(**r))
+        seen = set(d.get("mechanics_seen") or [])
+        if not seen:  # older reports only kept the names
+            names = set(d.get("behavior", {}).get("mechanics_seen") or [])
+            seen = {f"__mech{i}" for i, m in enumerate(profile.mechanics) if m.get("name") in names}
+        strategies = d.get("strategies") or {
+            name: [{"plan": p} for p in info.get("strategies", [])]
+            for name, info in d.get("behavior", {}).get("players", {}).items() if info.get("strategies")
+        }
+        return cls(mode=d["mode"], target=d["target"], profile=profile, runs=runs, hooks=d.get("hooks", {}),
+                   strategies=strategies, load=d.get("load", {}), build_log=d.get("build_log", []),
+                   calibration=d.get("calibration", []), problems=d.get("problems", []), mechanics_seen=seen,
+                   metrics={"llm_calls": d.get("metrics", {}).get("llm_calls")})
+
+
+def analyse(result: ModeResult, llm_calls: int | None = None):
+    """Everything measured from the runs. No model calls here."""
+    calls = llm_calls if llm_calls is not None else result.metrics.get("llm_calls")
+    result.metrics = metrics_mod.summarize(result.runs)
+    if calls is not None:
+        result.metrics["llm_calls"] = calls  # includes profile, repair and controller calls
+    result.per_player = metrics_mod.by_player(result.runs)
+    result.failures = failures_mod.analyse(result.runs)
+    result.behavior = behavior_mod.observe(result.runs, result.profile, result.mechanics_seen, result.strategies)
+    result.fun = fun_mod.measure(result.runs, result.profile, result.behavior, result.failures)
 
 
 def make_player(name: str, persona: str | None, opts: Options):
@@ -88,6 +134,7 @@ class Playtest:
 
     def run_mode(self, mode: str, target: str) -> ModeResult:
         print(f"\n== {mode} mode: {target}")
+        calls_before = self.llm.usage.calls
         with contextlib.ExitStack() as stack:
             build_log: list[str] = []
             if mode == "code":
@@ -146,11 +193,8 @@ class Playtest:
                     result.strategies[player.name] = player.history
                     print(f"  controller versions: {[(h['version'], h['results'], h['added_hooks']) for h in player.history]}")
 
-        result.metrics = metrics_mod.summarize(result.runs)
-        result.per_player = metrics_mod.by_player(result.runs)
-        result.failures = failures_mod.analyse(result.runs)
-        result.behavior = behavior_mod.observe(result.runs, profile, mechanics_seen, result.strategies)
-        result.fun = fun_mod.measure(result.runs, profile, result.behavior, result.failures)
+        result.mechanics_seen = mechanics_seen
+        analyse(result, llm_calls=self.llm.usage.calls - calls_before)
         return result
 
     def evaluate(self, result: ModeResult, comparison: dict | None):

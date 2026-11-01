@@ -23,3 +23,9 @@ def test_full_session_with_mock_model(tmp_path):
     assert "skill_depth" in mode["fun"]["signals"]
     assert mode["verdict"]["verdict"] in ("fun", "mixed", "not fun")
     assert any(s["label"] == "start" for r in mode["runs"] for s in r["screenshots"])
+
+    # the saved report can be re-scored without replaying
+    again = main(["--llm", "mock", "--rescore", str(out / "report.json")])
+    rescored = json.loads((again / "report.json").read_text())
+    assert rescored["meta"]["rescored"]
+    assert rescored["modes"][0]["metrics"]["runs"] == mode["metrics"]["runs"]
