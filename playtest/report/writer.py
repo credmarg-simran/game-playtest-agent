@@ -104,6 +104,8 @@ def _mode_sections(r: ModeResult, multi: bool) -> list[Section]:
         bullets.append(f"JS error: {e}")
     if r.load.get("blank_screen"):
         bullets.append("The page looked blank after loading.")
+    for p in r.problems:
+        bullets.append(f"Agent problem (not the game): {p}")
     fs.add(bullets)
     out.append(fs)
 

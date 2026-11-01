@@ -141,14 +141,25 @@ class BrowserSession:
             self.step(frames_down)
             self.page.mouse.up()
         else:
-            self.page.keyboard.down(inp.key)
+            key = self._valid_key(inp.key)
+            self.page.keyboard.down(key)
             self.step(frames_down)
-            self.page.keyboard.up(inp.key)
+            self.page.keyboard.up(key)
+
+    def _valid_key(self, key: str) -> str:
+        """Playwright rejects unknown key names; fall back to Space rather than crash."""
+        try:
+            self.page.keyboard.up(key)
+            return key
+        except Exception:
+            self.console.append(f"agent: unknown key {key!r}, used Space")
+            return "Space"
 
     def hold_only(self, keys: set[str]):
         """Make exactly these keys held down."""
         for k in self.held - keys:
             self.page.keyboard.up(k)
+        keys = {self._valid_key(k) for k in keys}
         for k in keys - self.held:
             self.page.keyboard.down(k)
         self.held = set(keys)

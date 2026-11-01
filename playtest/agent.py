@@ -56,6 +56,7 @@ class ModeResult:
     verdict: dict = field(default_factory=dict)
     build_log: list[str] = field(default_factory=list)
     calibration: list[dict] = field(default_factory=list)
+    problems: list[str] = field(default_factory=list)  # agent-side failures, not game bugs
 
 
 def make_player(name: str, persona: str | None, opts: Options):
@@ -132,7 +133,12 @@ class Playtest:
                     runner = Runner(s, profile, player, self.llm, cfg, self.out / "screenshots")
                     runner.reopen = s.open
                     print(f"  playing as {player.name}")
-                    result.runs += runner.play()
+                    try:
+                        runner.play()
+                    except Exception as e:  # keep the runs we have and still write a report
+                        print(f"  {player.name} stopped early: {e.__class__.__name__}: {str(e)[:200]}")
+                        result.problems.append(f"{player.name} stopped early: {e.__class__.__name__}: {str(e)[:300]}")
+                    result.runs += runner.runs
                     for k, v in runner.hook_report().items():
                         result.hooks[k] = v if result.hooks.get(k, "never").startswith(("never", "constant")) else result.hooks[k]
                     mechanics_seen |= runner.mechanics_seen

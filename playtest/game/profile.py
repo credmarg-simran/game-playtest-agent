@@ -7,6 +7,7 @@ Built either from source code (accurate, with state hooks) or from the running p
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 
 from ..browser.session import Input
@@ -110,10 +111,13 @@ class GameProfile:
         return next((c for c in self.controls if c.name == name), None)
 
     def resolve(self, step: str) -> Input | None:
-        """Turn "jump", "key:Enter" or "click:0.5,0.6" into an Input."""
-        step = step.strip()
+        """Turn "jump", "key:Enter" or "click:0.5,0.6" into an Input.
+
+        Models sometimes write alternatives ("key:Space or click:0.5,0.5"); take the first one.
+        """
+        step = re.split(r"\s+or\s+|\s*\|\s*|\s*/\s*", str(step).strip())[0].strip()
         if step.startswith("key:"):
-            return Input("key", key=step[4:])
+            return Input("key", key=step[4:].strip() or "Space")
         if step.startswith("click:"):
             try:
                 x, y = (float(v) for v in step[6:].split(","))

@@ -90,7 +90,7 @@ def main(argv=None):
         "meta": meta, "comparison": comparison,
         "modes": [{
             "mode": r.mode, "target": r.target, "profile": r.profile.to_dict(), "load": r.load, "hooks": r.hooks,
-            "calibration": r.calibration,
+            "calibration": r.calibration, "problems": r.problems,
             "metrics": r.metrics, "per_player": r.per_player, "failures": r.failures, "behavior": r.behavior,
             "fun": r.fun, "verdict": r.verdict, "build_log": r.build_log, "runs": [x.to_dict() for x in r.runs],
         } for r in results],

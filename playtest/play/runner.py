@@ -46,6 +46,7 @@ class Runner:
         self.hook_seen: dict[str, set] = {name: set() for name in profile.hooks}
         self.mechanics_seen: set[str] = set()
         self.reopen = None  # reloads the page when a run ends without a game over screen
+        self.runs: list[RunLog] = []
         self.mechanic_reads = {f"__mech{i}": m["seen_when"] for i, m in enumerate(profile.mechanics) if m.get("seen_when")}
         player.bind(session, profile, llm)
 
@@ -233,7 +234,9 @@ class Runner:
                 if self.player.out_of_budget:
                     run.end = "budget"
                     break
-            if decision.note and decision.note.startswith(("ReferenceError", "TypeError", "SyntaxError")):
+            if decision.note and "Error" in decision.note.split(":")[0]:
+                if not run.count("controller_error"):
+                    print(f"    controller error: {decision.note[:150]}")
                 run.add(t, "controller_error", decision.note[:120])
 
             names = [i.name for i in decision.inputs]
@@ -296,7 +299,7 @@ class Runner:
         })
 
     def play(self) -> list[RunLog]:
-        runs = []
+        runs = self.runs = []
         fresh = True
         for i in range(self.cfg.runs):
             run = self.play_run(i, first=fresh)
