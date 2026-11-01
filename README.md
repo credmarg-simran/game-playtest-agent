@@ -10,8 +10,9 @@ It works two ways, and can do both in one session to compare them:
   controls, the goal and where the game keeps its state (score, death flag, player and obstacle
   positions), verifies that against the running game, then plays with exact state. This is the case for
   games made with tools like Jabali, where the creator has the source.
-- **Without code** (`--url`): point it at a game that already runs online. It only has screenshots, the
-  page's visible text and whatever global variables the page exposes.
+- **Without code** (`--url`): point it at a game that already runs online. It has screenshots, the
+  page's visible text, any global variables the page exposes and, for Phaser games (Jabali's web engine),
+  the live scene state of the running game.
 
 ## Setup
 
@@ -203,6 +204,24 @@ Without code it still found the score through a page global, but the screenshot 
 quickly enough for a one-button reflex game within its call budget, so it never scored. In this session two
 URL-mode random runs ran long because the button-masher restarted the game before the death check fired; the
 check has since been tightened.
+
+## Results on a Jabali game
+
+Full report: [`reports/sample-jabali/report.md`](reports/sample-jabali/report.md). The game is
+"Mothlight: Last Lantern Standing", made with Jabali from a one-paragraph prompt and played from its public
+link, so this is URL mode with no source code (three runs per player).
+
+- The agent got past the portal page (ads, loading overlay), switched to the game's own iframe, captured the
+  Phaser game object and read its live scene state. From that it built hooks for score, game over, player
+  position, lanterns lit and the dash meter without ever seeing the code.
+- **Skill depth is the weak spot**: random button mashing scored 21.7 on average against 17.5 for the
+  thinking players, and survived about as long (18.5 s vs 19 s for the code-free controller).
+- Players kept dying to a rule the game never explains: a snuffed lantern is **locked** for a while and
+  cannot be relit. Six confusion notes were about locks or the dash meter.
+- Two mechanics the game state advertises (escalating waves, timed drops) never showed up in runs of up to
+  22 s, so most players would never meet them.
+- Verdict: mixed, 6/10, with suggestions such as a countdown ring on locked lanterns, a "dash ready" cue, and
+  showing the first wave change earlier.
 
 ## Limits
 

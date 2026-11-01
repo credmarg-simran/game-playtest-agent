@@ -8,3 +8,4 @@ reports/*
 games/*/node_modules/
 games/*/dist/
 .DS_Store
+!reports/sample-jabali/

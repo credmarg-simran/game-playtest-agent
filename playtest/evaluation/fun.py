@@ -88,9 +88,10 @@ def measure(runs: list[RunLog], profile: GameProfile, behavior: dict, failures: 
             max(1, score), "median survival >= 20s = 5, 10s = 4, 5s = 3, 2s = 2; -1 if >30% die in 3s; 2 if almost all runs time out")
 
     # skill depth: thinking players versus the random control group
-    if skilled and baseline:
-        s_avg, b_avg = mean(r.score for r in skilled), mean(r.score for r in baseline)
-        s_surv, b_surv = mean(r.seconds for r in skilled), mean(r.seconds for r in baseline)
+    finished = [r for r in skilled if r.end != "budget"]  # runs we cut short are not the player's result
+    if finished and baseline:
+        s_avg, b_avg = mean(r.score for r in finished), mean(r.score for r in baseline)
+        s_surv, b_surv = mean(r.seconds for r in finished), mean(r.seconds for r in baseline)
         ratio = (s_avg + 1) / (b_avg + 1)
         surv_ratio = s_surv / max(b_surv, 0.1)
         signals["skill_depth"] = _signal(
