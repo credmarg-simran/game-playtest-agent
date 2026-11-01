@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Rock Dodge</title>
+<style>
+  html, body { margin: 0; background: #10141c; height: 100%; display: grid; place-items: center; }
+  canvas { background: #1b2230; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="360"></canvas>
+<script>
+// A deliberately small game used by the test suite. Move left/right, dodge falling rocks.
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+window.state = { phase: 'menu', score: 0, over: false, playing: false, playerX: 240, rocks: [] };
+const keys = {};
+let spawnTimer = 0;
+let speed = 2;
+
+function reset() {
+  Object.assign(state, { phase: 'play', score: 0, over: false, playing: true, playerX: 240, rocks: [] });
+  speed = 2;
+  spawnTimer = 0;
+}
+
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if ((e.code === 'Space' || e.code === 'Enter') && state.phase !== 'play') reset();
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+
+function update() {
+  if (state.phase !== 'play') return;
+  if (keys.ArrowLeft) state.playerX -= 5;
+  if (keys.ArrowRight) state.playerX += 5;
+  state.playerX = Math.max(15, Math.min(465, state.playerX));
+  if (--spawnTimer <= 0) {
+    state.rocks.push({ x: 20 + Math.random() * 440, y: -10 });
+    spawnTimer = Math.max(12, 45 - state.score);
+  }
+  for (const r of state.rocks) r.y += speed;
+  const before = state.rocks.length;
+  state.rocks = state.rocks.filter(r => r.y < 370);
+  state.score += before - state.rocks.length;
+  speed = 2 + state.score / 15;
+  for (const r of state.rocks) {
+    if (Math.abs(r.x - state.playerX) < 22 && Math.abs(r.y - 330) < 18) {
+      Object.assign(state, { phase: 'over', over: true, playing: false });
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, 480, 360);
+  ctx.fillStyle = '#e8b04a';
+  ctx.fillRect(state.playerX - 15, 320, 30, 20);
+  ctx.fillStyle = '#9aa4b5';
+  for (const r of state.rocks) { ctx.beginPath(); ctx.arc(r.x, r.y, 9, 0, 7); ctx.fill(); }
+  ctx.fillStyle = '#fff';
+  ctx.font = '18px sans-serif';
+  ctx.fillText('Score: ' + state.score, 10, 24);
+  if (state.phase === 'menu') ctx.fillText('Press SPACE to start. Arrow keys to move.', 70, 180);
+  if (state.phase === 'over') ctx.fillText('Game over! Press SPACE to try again', 90, 180);
+}
+
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
