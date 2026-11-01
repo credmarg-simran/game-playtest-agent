@@ -171,6 +171,34 @@
     return out;
   }
 
+  // Without source, a captured Phaser game still shows its scenes and their fields at runtime.
+  const ENGINE_KEYS = new Set(['sys', 'game', 'anims', 'cache', 'registry', 'sound', 'textures', 'events', 'cameras',
+    'add', 'make', 'scene', 'children', 'data', 'input', 'load', 'lights', 'plugins', 'time', 'tweens', 'physics',
+    'matter', 'scale', 'renderer', 'facebook']);
+  function engineState() {
+    const g = games[0];
+    if (!g || !g.scene || !g.scene.getScenes) return null;
+    const scenes = g.scene.getScenes(true).map(s => {
+      const fields = {};
+      for (const k of Object.keys(s)) {
+        if (k.startsWith('_') || ENGINE_KEYS.has(k)) continue;
+        const v = s[k];
+        const t = typeof v;
+        if (t === 'number' || t === 'boolean' || t === 'string') fields[k] = plain(v, 0);
+        else if (Array.isArray(v)) {
+          const first = v.find(x => x && typeof x === 'object');
+          fields[k] = 'array(' + v.length + ')' + (first ? ' of {' + Object.keys(first).filter(x => !x.startsWith('_')).slice(0, 15).join(', ') + '}' : '');
+        } else if (v && t === 'object' && typeof v.x === 'number' && typeof v.y === 'number') {
+          fields[k] = 'object at (' + Math.round(v.x) + ', ' + Math.round(v.y) + ')';
+        }
+      }
+      return { key: s.scene.key, fields };
+    });
+    let registry = {};
+    try { registry = plain(g.registry.getAll(), 2) || {}; } catch (e) { }
+    return { scenes, registry, size: [g.scale && g.scale.width, g.scale && g.scale.height] };
+  }
+
   function visibleText() {
     return document.body ? document.body.innerText.replace(/\s+/g, ' ').trim().slice(0, 600) : '';
   }
@@ -205,7 +233,7 @@
     frame: () => frame,
     errors: since => errors.filter(e => e.frame >= (since || 0)),
     engine: () => (games.length ? (games[0].scene && games[0].loop ? 'phaser' : 'hooked') : (window.me && window.me.state ? 'melonjs' : 'unknown')),
-    read, scanGlobals, visibleText, buttons, canvasRect,
+    read, scanGlobals, visibleText, buttons, canvasRect, engineState,
   };
   Object.defineProperty(window, '__playtest', { value: api });
 })();

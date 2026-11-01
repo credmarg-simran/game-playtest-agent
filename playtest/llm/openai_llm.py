@@ -20,7 +20,7 @@ class OpenAILLM(LLM):
         super().__init__()
         from openai import OpenAI
 
-        self.client = OpenAI()
+        self.client = OpenAI(timeout=120, max_retries=1)  # our own retry loop handles the rest
         self.model = model
         self.strong_model = strong_model or model
         self.image_width = image_width

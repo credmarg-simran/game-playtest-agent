@@ -176,12 +176,33 @@ screen.
 
 ## Results on Clumsy Bird
 
-See [`reports/sample/report.md`](reports/sample/report.md) for the full report. In short:
+Full report: [`reports/sample/report.md`](reports/sample/report.md) (also `report.html` and `report.json`).
+Five runs per player, `gpt-5-mini` for frequent calls and `gpt-5` for reasoning calls, about 170k input
+tokens for the whole session.
 
-- **With code**, the agent found the game's real state (menu, play and game-over states, bird position,
-  the 176 px gap between pipes) and its rules player got through pipes, where button mashing never did.
-- **Without code**, it still found the score through a page global, but not the death state, and the
-  screenshot player could not react fast enough for a one-button reflex game within its call budget.
+| | With code | URL only |
+|---|---|---|
+| State hooks found / live in play | 13 / 12 | 2 / 1 |
+| Thinking player | rules: scores 0, 0, 0, 2, 2 by run | vision: 0 in every run |
+| Random control group | 0 in every run | 0 in every run |
+| Verdict | mixed, 5/10 | mixed, 4/10 |
+
+What the agent found with code access:
+
+- It worked out the real geometry from the source (176 px gap, 72 px flap, pipes every 92 frames) after
+  calibration checked its hooks, and its controller learned across runs: the first three runs scored nothing,
+  the last two passed two pipes each.
+- Most deaths were grazes on the pipe lips. The players noticed that **the point is awarded before the bird
+  has cleared the pipe**, so the run "feels won" while you can still clip the trailing edge, and the judge
+  turned that into a concrete fix (score on the trailing edge, or a short grace period).
+- First-session difficulty is harsh: 60% of the code-aware player's runs died in under 3 s, and the 2 s "Get Ready" with no clear
+  "tap to start" cue confused the players. Suggestions include easing the first five pipes
+  (speed 5 -> 4 px, spawn every 100 instead of 92 frames) and showing the ceiling limit.
+
+Without code it still found the score through a page global, but the screenshot player cannot react
+quickly enough for a one-button reflex game within its call budget, so it never scored. In this session two
+URL-mode random runs ran long because the button-masher restarted the game before the death check fired; the
+check has since been tightened.
 
 ## Limits
 

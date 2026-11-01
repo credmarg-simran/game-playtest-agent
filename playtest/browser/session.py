@@ -66,11 +66,13 @@ class BrowserSession:
         self.step(warmup_frames)
 
     def _load(self, url: str):
-        self.page.goto(url, wait_until="load", timeout=60_000)
-        try:
-            self.page.wait_for_load_state("networkidle", timeout=15_000)  # assets still loading
-        except Exception:
-            pass
+        # Portal pages with ads may never fire "load"; the game itself usually has by then.
+        self.page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+        for state, timeout in (("load", 20_000), ("networkidle", 15_000)):
+            try:
+                self.page.wait_for_load_state(state, timeout=timeout)
+            except Exception:
+                pass
 
     def _unwrap_iframe(self) -> bool:
         """Game portals often embed the game in an iframe. Play the iframe's page directly so keys,
@@ -117,6 +119,7 @@ class BrowserSession:
                 text: window.__playtest.visibleText(),
                 buttons: window.__playtest.buttons(),
                 canvas: window.__playtest.canvasRect(),
+                engine_state: window.__playtest.engineState(),
                 title: document.title,
             })"""
         )

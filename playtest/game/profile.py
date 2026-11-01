@@ -161,15 +161,54 @@ def profile_from_source(project: Project, llm: LLM) -> GameProfile:
     return profile
 
 
-def profile_from_page(probe: dict, screenshot: bytes, llm: LLM, use_globals=True) -> GameProfile:
+REFINE_SYSTEM = f"""You wrote a playtest profile for a browser game from its title screen, without source code.
+The game is now in play. You get a screenshot, the visible text, and the engine's live state: the active
+scenes with their simple fields (numbers, flags, arrays and objects with positions). A variable `game` in the
+page's global scope holds the engine instance, so a scene field is `game.scene.getScene('Key').field`.
+
+Rewrite the profile. Use the live state for hooks: "score", "over" (true only on game over), "playing" (true
+only while the player is in control), plus what a player needs to decide (player position, hazards, lives,
+timers). Guard every expression so it never throws (`&&` / optional chaining). Keep the controls and start
+steps unless the screen shows they are wrong.
+
+Return JSON with exactly this shape:
+{PROFILE_SHAPE}"""
+
+
+def _page_info(probe: dict, use_globals: bool) -> dict:
+    rect = probe.get("canvas") or None
+    buttons = []
+    for b in probe.get("buttons") or []:
+        # give positions in the same canvas fractions that controls use
+        if rect and rect["w"] and rect["h"]:
+            buttons.append({"text": b["text"], "click": [round((b["x"] - rect["x"]) / rect["w"], 3),
+                                                         round((b["y"] - rect["y"]) / rect["h"], 3)]})
     info = {"title": probe.get("title"), "engine_hint": probe.get("engine"), "visible_text": probe.get("text"),
-            "buttons": probe.get("buttons")}
+            "buttons": buttons}
     if use_globals:
         info["globals"] = probe.get("globals")
-    data = llm.ask_json("profile", BLIND_SYSTEM, json.dumps(info)[:12_000], images=[screenshot])
+        info["engine_state"] = probe.get("engine_state")
+    return info
+
+
+def profile_from_page(probe: dict, screenshot: bytes, llm: LLM, use_globals=True) -> GameProfile:
+    info = _page_info(probe, use_globals)
+    data = llm.ask_json("profile", BLIND_SYSTEM, json.dumps(info, default=str)[:12_000], images=[screenshot])
     profile = GameProfile.from_dict(data, source="blind")
     if not use_globals:
         profile.hooks = {}
     return profile
+
+
+def refine_from_play(profile: GameProfile, probe: dict, screenshot: bytes, llm: LLM) -> GameProfile:
+    """Second look, once the game is running: the play scene and its state only exist now."""
+    info = {"current_profile": profile.to_dict(), **_page_info(probe, True)}
+    data = llm.ask_json("profile", REFINE_SYSTEM, json.dumps(info, default=str)[:16_000], images=[screenshot])
+    if not data.get("controls"):
+        return profile
+    refined = GameProfile.from_dict(data, source="blind")
+    # later calls (hook repair, controller writing) get the runtime state in place of source code
+    refined.code = "No source code. Live engine state seen while playing:\n" + json.dumps(probe.get("engine_state"), default=str)
+    return refined
 
 

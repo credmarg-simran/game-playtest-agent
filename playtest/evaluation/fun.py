@@ -173,6 +173,10 @@ Decide whether this game is fun for a human, and why. Rules:
 - You may move a dimension score by at most 1 from the measured score, and only with a stated reason.
 - The players are bots: separate "the game is hard/boring" from "the bot is bad at it".
 - Suggestions must be concrete changes a developer can make (a value, a screen, a rule), tied to evidence.
+- Only quote internal values (speeds, gravity, sizes) that appear in the profile or data. Without source code,
+  describe changes relative to what was observed instead of inventing numbers.
+- A stall or loop by the random player usually means the bot sat on a menu or mashed a useless key. Call it a
+  game bug only if a thinking player hit it too or the data shows the game itself froze.
 
 Return JSON:
 {"fun_score": 1-10, "verdict": "fun" | "mixed" | "not fun", "headline": "one sentence",

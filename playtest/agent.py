@@ -18,7 +18,7 @@ from .evaluation import failures as failures_mod
 from .evaluation import fun as fun_mod
 from .evaluation import metrics as metrics_mod
 from .game.calibrate import calibrate
-from .game.profile import GameProfile, profile_from_page, profile_from_source
+from .game.profile import GameProfile, profile_from_page, profile_from_source, refine_from_play
 from .game.project import load_project
 from .llm.base import LLM
 from .play.records import Event, RunLog
@@ -132,6 +132,17 @@ class Playtest:
     def _session(self, url: str) -> BrowserSession:
         return BrowserSession(url, viewport=self.opts.viewport, headless=self.opts.headless)
 
+    def _look_in_play(self, s: BrowserSession, profile: GameProfile) -> GameProfile:
+        """Start the game, let it run two seconds, and probe again with the play scene alive."""
+        for step in profile.start or ["key:Space"]:
+            inp = profile.resolve(step)
+            if inp:
+                s.tap(inp)
+                s.step(30)
+        s.step(120)
+        png = s.screenshot(self.out / "screenshots" / "url-in-play.png")
+        return refine_from_play(profile, s.probe(), png, self.llm)
+
     def run_mode(self, mode: str, target: str) -> ModeResult:
         print(f"\n== {mode} mode: {target}")
         calls_before = self.llm.usage.calls
@@ -156,6 +167,8 @@ class Playtest:
                 probe = s.probe()
                 if profile is None:
                     profile = profile_from_page(probe, png, self.llm, use_globals=not self.opts.pixels_only)
+                    if not self.opts.pixels_only and probe.get("engine_state"):
+                        profile = self._look_in_play(s, profile)
                 calibration = calibrate(s, profile, self.llm) if profile.hooks else []
                 for c in calibration:
                     dead = {k: v for k, v in c["status"].items() if v != "live"}

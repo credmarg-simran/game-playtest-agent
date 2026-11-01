@@ -191,8 +191,10 @@ class Runner:
 
             # is the run over?
             over = bool(state.get("over")) if "over" in hooks and state.get("over") is not None else False
-            if lost_at is not None and t - lost_at > 6:
-                over = True  # control never came back
+            # Control never came back. Without a game-over hook, wait less: a button-masher can restart
+            # the game within seconds and turn many lives into one run.
+            if lost_at is not None and t - lost_at > (6 if "over" in hooks else 1):
+                over = True
             if "over" not in hooks and not self.player.wants_screenshot() and frame - last_look >= cfg.look_every:
                 seen = self.look(png or s.screenshot())
                 run.llm_calls += 1
